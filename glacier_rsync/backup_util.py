@@ -3,6 +3,7 @@ import os
 import shutil
 import sqlite3
 from contextlib import ExitStack
+from datetime import datetime
 
 
 class BackupUtil:
@@ -25,7 +26,7 @@ class BackupUtil:
 
 		cur = self.conn.cursor()
 		cur.execute(
-			'create table if not exists sync_history (id integer primary key, path text, archive_id text, timestamp text);')
+			'create table if not exists sync_history (id integer primary key, path text, file_size integer, mtime float, archive_id text, timestamp text);')
 		self.conn.commit()
 		cur.close()
 		logging.debug("init is done")
@@ -45,21 +46,24 @@ class BackupUtil:
 				logging.debug(f"{file} will be backed up")
 				compressed_file = self._compress(file)
 				logging.debug(f"{file} is compressed as {compressed_file}")
-				self._backup(compressed_file)
-				logging.debug(f"{file} backed up with id")
+				archive_id = self._backup(compressed_file)
+				logging.debug(f"{file} backed up with {archive_id}")
+				self._mark_backed_up(file, archive_id)
 				self._remove_file(compressed_file)
 				logging.debug(f"{compressed_file} is deleted")
 			else:
 				logging.debug(f"{file} is already backed up, skipping...")
 
-	def _check_if_backed_up(self, file):
+	def _check_if_backed_up(self, path):
 		"""
 		Check if file is already backed up
 		:param file: full file path
 		:return: True if file is backed up, False if file is not backed up
 		"""
+		file_size, mtime = self.__get_stats(path)
 		cur = self.conn.cursor()
-		cur.execute(f"select * from sync_history where path='{file}'")
+		cur.execute(
+			f"select * from sync_history where path='{path}' and file_size={file_size} and mtime={mtime}")
 		rows = cur.fetchall()
 		return len(rows) > 0
 
@@ -112,10 +116,38 @@ class BackupUtil:
 			shutil.copyfileobj(f_in, f_out)
 
 	def _backup(self, compressed_file):
-		pass
+		return "1234"
 
-	def _remove_file(self, compressed_file):
+	def _remove_file(self, path):
+		"""
+		Delete the given file. File will not be deleted if compression is off because compressed_file == file
+		:param path: absolute path of the file
+		"""
 		if self.compress_algo is None:
 			return
 		elif self.remove_compressed:
-			os.remove(compressed_file)
+			os.remove(path)
+
+	def _mark_backed_up(self, path, archive_id):
+		"""
+		Mark the given file as archived in db with associated information
+		:param path: absolute path of the file
+		:param archive_id: glacier archive id
+		"""
+		file_size, mtime = self.__get_stats(path)
+		timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+		cur = self.conn.cursor()
+		cur.execute(
+			f"insert into sync_history (path, file_size, mtime, archive_id, timestamp) "
+			f"values ('{path}', {file_size}, {mtime}, '{archive_id}', '{timestamp}')"
+		)
+		cur.close()
+		self.conn.commit()
+
+	def __get_stats(self, path):
+		"""
+		Get the stats of given file
+		:param path: absolute path of the file
+		:return: tuple(file size, modified time)
+		"""
+		return os.path.getsize(path), os.path.getmtime(path)
