@@ -81,11 +81,7 @@ class BackupUtil:
 				raise ValueError(msg)
 
 			compressed_file = f'{file}.gz'
-
-			with ExitStack() as stack:
-				f_in = stack.enter_context(open(file, 'rb'))
-				f_out = stack.enter_context(gzip.open(compressed_file, 'wb'))
-				shutil.copyfileobj(f_in, f_out)
+			self.__compress_stream(open(file, 'rb'), gzip.open(compressed_file, 'wb'))
 
 			return compressed_file
 		elif self.compress_algo == 'zstd':
@@ -98,15 +94,22 @@ class BackupUtil:
 
 			compressed_file = f'{file}.zstd'
 			cctx = zstd.ZstdCompressor()
-
-			with ExitStack() as stack:
-				f_in = stack.enter_context(open(file, 'rb'))
-				f_out = stack.enter_context(cctx.stream_writer(open(compressed_file, 'wb')))
-				shutil.copyfileobj(f_in, f_out)
+			self.__compress_stream(open(file, 'rb'), cctx.stream_writer(open(compressed_file, 'wb')))
 
 			return compressed_file
 		else:
 			return None
+
+	def __compress_stream(self, input, output):
+		"""
+		Redirect input file to compressor output
+		:param input: input stream
+		:param output: output compressor stream
+		"""
+		with ExitStack() as stack:
+			f_in = stack.enter_context(input)
+			f_out = stack.enter_context(output)
+			shutil.copyfileobj(f_in, f_out)
 
 	def _backup(self, compressed_file):
 		pass
