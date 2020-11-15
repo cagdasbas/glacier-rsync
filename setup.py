@@ -26,7 +26,7 @@ setup(
 	name='glacier-rsync',
 	version='0.1.0',
 	url='https://github.com/cagdasbas/glacier_rsync',
-	python_requires='>=3.6',
+	python_requires='>=3.8',
 	description='Rsync like utility for backing up files/folders to AWS Glacier',
 	long_description=read_file('README.md'),
 	long_description_content_type="text/markdown",
