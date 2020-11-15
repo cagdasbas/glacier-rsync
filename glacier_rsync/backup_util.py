@@ -3,7 +3,9 @@ import os
 import shutil
 import sqlite3
 from contextlib import ExitStack
-from datetime import datetime
+
+import boto3
+from botocore.exceptions import ClientError
 
 
 class BackupUtil:
@@ -16,6 +18,8 @@ class BackupUtil:
 		self.vault = args.vault
 		self.region = args.region
 
+		self.glacier = boto3.client('glacier', region_name=self.region)
+
 		self.db_file = args.db
 		try:
 			self.conn = sqlite3.connect(self.db_file)
@@ -26,7 +30,7 @@ class BackupUtil:
 
 		cur = self.conn.cursor()
 		cur.execute(
-			'create table if not exists sync_history (id integer primary key, path text, file_size integer, mtime float, archive_id text, timestamp text);')
+			'create table if not exists sync_history (id integer primary key, path text, file_size integer, mtime float, archive_id text, location text, checksum text, timestamp text);')
 		self.conn.commit()
 		cur.close()
 		logging.debug("init is done")
@@ -46,9 +50,8 @@ class BackupUtil:
 				logging.debug(f"{file} will be backed up")
 				compressed_file = self._compress(file)
 				logging.debug(f"{file} is compressed as {compressed_file}")
-				archive_id = self._backup(compressed_file)
-				logging.debug(f"{file} backed up with {archive_id}")
-				self._mark_backed_up(file, archive_id)
+				archive = self._backup(compressed_file)
+				self._mark_backed_up(file, archive)
 				self._remove_file(compressed_file)
 				logging.debug(f"{compressed_file} is deleted")
 			else:
@@ -115,8 +118,23 @@ class BackupUtil:
 			f_out = stack.enter_context(output)
 			shutil.copyfileobj(f_in, f_out)
 
-	def _backup(self, compressed_file):
-		return "1234"
+	def _backup(self, src_file):
+		try:
+			object_data = open(src_file, 'rb')
+		# possible FileNotFoundError/IOError exception
+		except Exception as e:
+			logging.error(e)
+			return None
+		try:
+			archive = self.glacier.upload_archive(vaultName=self.vault, body=object_data)
+		except ClientError as e:
+			logging.error(e)
+			return None
+		finally:
+			object_data.close()
+
+		# Return dictionary of archive information
+		return archive
 
 	def _remove_file(self, path):
 		"""
@@ -128,18 +146,25 @@ class BackupUtil:
 		elif self.remove_compressed:
 			os.remove(path)
 
-	def _mark_backed_up(self, path, archive_id):
+	def _mark_backed_up(self, path, archive):
 		"""
 		Mark the given file as archived in db with associated information
 		:param path: absolute path of the file
 		:param archive_id: glacier archive id
 		"""
+		if archive is None:
+			logging.error(f"{path} cannot be backed up")
+			return
+		archive_id = archive['archiveId']
+		location = archive['location']
+		checksum = archive['checksum']
+		timestamp = archive['ResponseMetadata']['HTTPHeaders']['date']
+
 		file_size, mtime = self.__get_stats(path)
-		timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
 		cur = self.conn.cursor()
 		cur.execute(
-			f"insert into sync_history (path, file_size, mtime, archive_id, timestamp) "
-			f"values ('{path}', {file_size}, {mtime}, '{archive_id}', '{timestamp}')"
+			f"insert into sync_history (path, file_size, mtime, archive_id, location, checksum, timestamp) "
+			f"values ('{path}', {file_size}, {mtime}, '{archive_id}', '{location}', '{checksum}', '{timestamp}')"
 		)
 		cur.close()
 		self.conn.commit()
