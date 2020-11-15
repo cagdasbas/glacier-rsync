@@ -36,24 +36,26 @@ class BackupUtil:
 		logging.debug("init is done")
 
 	def backup(self):
+		"""
+		Interface function to find files and apply logic
+		"""
 		file_list = []
-		if os.path.isdir(self.src):
+		if os.path.isdir(self.src): # if the source is a directory find all the files
 			for root, dirs, files in os.walk(self.src):
 				for file in files:
 					file_list.append(os.path.abspath(os.path.join(root, file)))
 		else:
-			file_list.append(self.src)
+			file_list.append(self.src) # if the source is a file just process it
 
 		logging.debug(f"number of files to backup: {len(file_list)}")
 		for file in file_list:
-			if not self._check_if_backed_up(file):
+			if not self._check_if_backed_up(file): # True if already backed up
 				logging.debug(f"{file} will be backed up")
-				compressed_file = self._compress(file)
+				compressed_file = self._compress(file) # compress the file if specified
 				logging.debug(f"{file} is compressed as {compressed_file}")
 				archive = self._backup(compressed_file)
 				self._mark_backed_up(file, archive)
 				self._remove_file(compressed_file)
-				logging.debug(f"{compressed_file} is deleted")
 			else:
 				logging.debug(f"{file} is already backed up, skipping...")
 
@@ -63,7 +65,7 @@ class BackupUtil:
 		:param file: full file path
 		:return: True if file is backed up, False if file is not backed up
 		"""
-		file_size, mtime = self.__get_stats(path)
+		file_size, mtime = self.__get_stats(path) # file size and mtime should match. if not it will be backed up again
 		cur = self.conn.cursor()
 		cur.execute(
 			f"select * from sync_history where path='{path}' and file_size={file_size} and mtime={mtime}")
@@ -76,7 +78,7 @@ class BackupUtil:
 		:param file: input file path
 		:return: compressed file path. If no compression is selected, the same file path
 		"""
-		if self.compress_algo is None:
+		if self.compress_algo is None: # do nothing and let the util process the original file
 			return file
 
 		if self.compress_algo == "gzip":
@@ -109,7 +111,7 @@ class BackupUtil:
 
 	def __compress_stream(self, input, output):
 		"""
-		Redirect input file to compressor output
+		Wrapper for redirecting the input file to compressor output
 		:param input: input stream
 		:param output: output compressor stream
 		"""
@@ -119,6 +121,13 @@ class BackupUtil:
 			shutil.copyfileobj(f_in, f_out)
 
 	def _backup(self, src_file):
+		"""
+		Send the file to glacier
+		:param src_file: Absolute path of the file to be backed up
+		:return: archive information
+		"""
+		if src_file is None: # only happens if unsupported compression algorithm
+			return None
 		try:
 			object_data = open(src_file, "rb")
 		# possible FileNotFoundError/IOError exception
@@ -126,7 +135,7 @@ class BackupUtil:
 			logging.error(e)
 			return None
 		try:
-			archive = self.glacier.upload_archive(vaultName=self.vault, body=object_data)
+			archive = self.glacier.upload_archive(vaultName=self.vault, body=object_data) # actual work
 		except ClientError as e:
 			logging.error(e)
 			return None
@@ -145,6 +154,7 @@ class BackupUtil:
 			return
 		elif self.remove_compressed:
 			os.remove(path)
+			logging.info(f"{path} is removed")
 
 	def _mark_backed_up(self, path, archive):
 		"""
