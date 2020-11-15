@@ -13,10 +13,9 @@ def main():
 		format="%(asctime)s - %(module)s.%(funcName)s:%(lineno)d - %(levelname)s - %(message)s",
 		level=getattr(logging, args.log_level, None))
 
-	args = ArgParser().get_args()
 	backup_util = BackupUtil(args)
 	backup_util.backup()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 	main()
