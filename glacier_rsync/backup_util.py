@@ -18,7 +18,7 @@ class BackupUtil:
 		self.vault = args.vault
 		self.region = args.region
 
-		self.glacier = boto3.client('glacier', region_name=self.region)
+		self.glacier = boto3.client("glacier", region_name=self.region)
 
 		self.db_file = args.db
 		try:
@@ -30,7 +30,7 @@ class BackupUtil:
 
 		cur = self.conn.cursor()
 		cur.execute(
-			'create table if not exists sync_history (id integer primary key, path text, file_size integer, mtime float, archive_id text, location text, checksum text, timestamp text);')
+			"create table if not exists sync_history (id integer primary key, path text, file_size integer, mtime float, archive_id text, location text, checksum text, timestamp text);")
 		self.conn.commit()
 		cur.close()
 		logging.debug("init is done")
@@ -79,7 +79,7 @@ class BackupUtil:
 		if self.compress_algo is None:
 			return file
 
-		if self.compress_algo == 'gzip':
+		if self.compress_algo == "gzip":
 			try:
 				import gzip
 			except ImportError:
@@ -87,11 +87,11 @@ class BackupUtil:
 				logging.error(msg)
 				raise ValueError(msg)
 
-			compressed_file = f'{file}.gz'
-			self.__compress_stream(open(file, 'rb'), gzip.open(compressed_file, 'wb'))
+			compressed_file = f"{file}.gz"
+			self.__compress_stream(open(file, "rb"), gzip.open(compressed_file, "wb"))
 
 			return compressed_file
-		elif self.compress_algo == 'zstd':
+		elif self.compress_algo == "zstd":
 			try:
 				import zstandard as zstd
 			except ImportError:
@@ -99,9 +99,9 @@ class BackupUtil:
 				logging.error(msg)
 				raise ValueError(msg)
 
-			compressed_file = f'{file}.zstd'
+			compressed_file = f"{file}.zstd"
 			cctx = zstd.ZstdCompressor()
-			self.__compress_stream(open(file, 'rb'), cctx.stream_writer(open(compressed_file, 'wb')))
+			self.__compress_stream(open(file, "rb"), cctx.stream_writer(open(compressed_file, "wb")))
 
 			return compressed_file
 		else:
@@ -120,7 +120,7 @@ class BackupUtil:
 
 	def _backup(self, src_file):
 		try:
-			object_data = open(src_file, 'rb')
+			object_data = open(src_file, "rb")
 		# possible FileNotFoundError/IOError exception
 		except Exception as e:
 			logging.error(e)
