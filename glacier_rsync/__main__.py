@@ -7,10 +7,11 @@ from glacier_rsync.backup_util import BackupUtil
 
 
 def main():
+	args = ArgParser().get_args()
 	logging.getLogger(__name__)
 	logging.basicConfig(
-		format='%(asctime)s - %(module)s.%(funcName)s:%(lineno)d - %(levelname)s - %(message)s',
-		level=getattr(logging, "DEBUG", None))
+		format="%(asctime)s - %(module)s.%(funcName)s:%(lineno)d - %(levelname)s - %(message)s",
+		level=getattr(logging, args.log_level, None))
 
 	args = ArgParser().get_args()
 	backup_util = BackupUtil(args)

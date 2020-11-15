@@ -6,10 +6,12 @@ class ArgParser:
 	def __init__(self):
 		self.parser = ArgumentParser(description='Rsync like glacier backup util')
 		self.parser.add_argument(
-			'--db',
-			metavar='db',
-			help='database file to store sync info',
-			default='glacier.db'
+			"--loglevel",
+			dest="log_level",
+			type=str,
+			choices=list(logging._levelToName.values()),
+			default="INFO",
+			help="log level"
 		)
 		self.parser.add_argument(
 			'--vault',
