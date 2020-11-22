@@ -39,7 +39,6 @@ class BackupUtil:
 			sys.exit(2)
 		finally:
 			cur.close()
-			self.__cleanup()
 		logging.debug("init is done")
 
 	def backup(self):
@@ -83,7 +82,6 @@ class BackupUtil:
 			sys.exit(3)
 		finally:
 			cur.close()
-			self.__cleanup()
 		return len(rows) > 0
 
 	def _compress(self, file):
@@ -197,7 +195,6 @@ class BackupUtil:
 			sys.exit(1)  # cannot continue if cannot mark
 		finally:
 			cur.close()
-			self.__cleanup()
 
 	def __get_stats(self, path):
 		"""
@@ -206,6 +203,3 @@ class BackupUtil:
 		:return: tuple(file size, modified time)
 		"""
 		return os.path.getsize(path), os.path.getmtime(path)
-
-	def __cleanup(self):
-		self.conn.close()
