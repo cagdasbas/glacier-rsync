@@ -14,7 +14,7 @@ from glacier_rsync.file_cache import FileCache
 class BackupUtil:
 	def __init__(self, args):
 		self.src = args.src
-		self.compress_algo = args.compress
+		self.compress = args.compress
 		self.remove_compressed = args.remove_compressed
 		self.desc = args.desc
 		self.part_size = args.partsize
@@ -95,12 +95,9 @@ class BackupUtil:
 		"""
 
 		file_object = open(file, 'rb')
+		compression = False
 
-		if self.compress_algo is None:
-			compression = False
-		elif self.compress_algo == "gzip":
-			raise NotImplementedError()
-		elif self.compress_algo == "zstd":
+		if self.compress:
 			try:
 				import zstandard as zstd
 			except ImportError:

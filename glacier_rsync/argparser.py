@@ -1,11 +1,11 @@
+import argparse
 import logging
-from argparse import ArgumentParser
 
 
 class ArgParser:
 
 	def __init__(self):
-		self.parser = ArgumentParser(description="Rsync like glacier backup util")
+		self.parser = argparse.ArgumentParser(description="Rsync like glacier backup util")
 		self.parser.add_argument(
 			"--loglevel",
 			dest="log_level",
@@ -34,9 +34,9 @@ class ArgParser:
 		)
 		self.parser.add_argument(
 			"--compress",
-			help="Compression algorithm. zstandard package have to be installed for zstd option",
-			choices=["gzip", "zstd"],
-			default=None
+			help="Enable compression. Only zstd is supported",
+			type=self.str2bool,
+			default=False
 		)
 		self.parser.add_argument(
 			"--remove_compressed",
@@ -53,6 +53,16 @@ class ArgParser:
 			metavar="src",
 			help="file or folder to generate archive from"
 		)
+
+	def str2bool(self, v):
+		if isinstance(v, bool):
+			return v
+		if v.lower() in ('yes', 'true', 't', 'y', '1'):
+			return True
+		elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+			return False
+		else:
+			raise argparse.ArgumentTypeError('Boolean value expected.')
 
 	def get_args(self):
 		return self.parser.parse_args()
