@@ -1,12 +1,14 @@
+import binascii
+import hashlib
 import logging
 import os
-import shutil
 import sqlite3
 import sys
-from contextlib import ExitStack
 
 import boto3
 from botocore.exceptions import ClientError
+
+from glacier_rsync.file_cache import FileCache
 
 
 class BackupUtil:
@@ -15,6 +17,7 @@ class BackupUtil:
 		self.compress_algo = args.compress
 		self.remove_compressed = args.remove_compressed
 		self.desc = args.desc
+		self.part_size = args.partsize
 
 		self.vault = args.vault
 		self.region = args.region
@@ -57,11 +60,11 @@ class BackupUtil:
 		for file in file_list:
 			if not self._check_if_backed_up(file):  # True if already backed up
 				logging.debug(f"{file} will be backed up")
-				compressed_file = self._compress(file)  # compress the file if specified
-				logging.debug(f"{file} is compressed as {compressed_file}")
-				archive = self._backup(compressed_file)
+				file_object, compressed_file_object = self._compress(file)  # compress the file if specified
+				logging.debug(f"{file} is compressed as")
+				archive = self._backup(compressed_file_object)
+				file_object.close()
 				self._mark_backed_up(file, archive)
-				self._remove_file(compressed_file)
 			else:
 				logging.debug(f"{file} is already backed up, skipping...")
 
@@ -90,21 +93,13 @@ class BackupUtil:
 		:param file: input file path
 		:return: compressed file path. If no compression is selected, the same file path
 		"""
-		if self.compress_algo is None:  # do nothing and let the util process the original file
-			return file
 
-		if self.compress_algo == "gzip":
-			try:
-				import gzip
-			except ImportError:
-				msg = "cannot import gzip. Please install required libraries!"
-				logging.error(msg)
-				raise ValueError(msg)
+		file_object = open(file, 'rb')
 
-			compressed_file = f"{file}.gz"
-			self.__compress_stream(open(file, "rb"), gzip.open(compressed_file, "wb"))
-
-			return compressed_file
+		if self.compress_algo is None:
+			compression = False
+		elif self.compress_algo == "gzip":
+			raise NotImplementedError()
 		elif self.compress_algo == "zstd":
 			try:
 				import zstandard as zstd
@@ -112,61 +107,90 @@ class BackupUtil:
 				msg = "cannot import zstd. Please install required libraries!"
 				logging.error(msg)
 				raise ValueError(msg)
+			compression = True
 
-			compressed_file = f"{file}.zstd"
-			cctx = zstd.ZstdCompressor()
-			self.__compress_stream(open(file, "rb"), cctx.stream_writer(open(compressed_file, "wb")))
+		return file_object, FileCache(file_object.readable(), compression=compression)
 
-			return compressed_file
-		else:
-			return None
-
-	def __compress_stream(self, input, output):
+	def calculate_tree_hash(self, part, part_size):
 		"""
-		Wrapper for redirecting the input file to compressor output
-		:param input: input stream
-		:param output: output compressor stream
+		Calculate hash of single part
+		:param part: data chunk
+		:param part_size: size of the chunk
+		:return: calculated hash
 		"""
-		with ExitStack() as stack:
-			f_in = stack.enter_context(input)
-			f_out = stack.enter_context(output)
-			shutil.copyfileobj(f_in, f_out)
+		checksums = []
+		upper_bound = min(len(part), part_size)
+		step = 1024 * 1024  # 1 MB
+		for chunk_pos in range(0, upper_bound, step):
+			chunk = part[chunk_pos: chunk_pos + step]
+			checksums.append(hashlib.sha256(chunk).hexdigest())
+			del chunk
+		return self.calculate_total_tree_hash(checksums)
 
-	def _backup(self, src_file):
+	def calculate_total_tree_hash(self, checksums):
+		"""
+		Calculate hash of a list
+		:param checksums: list(checksum) -> a list of checksum
+		:return: total calculated hash
+		"""
+		tree = checksums[:]
+		while len(tree) > 1:
+			parent = []
+			for i in range(0, len(tree), 2):
+				if i < len(tree) - 1:
+					part1 = binascii.unhexlify(tree[i])
+					part2 = binascii.unhexlify(tree[i + 1])
+					parent.append(hashlib.sha256(part1 + part2).hexdigest())
+				else:
+					parent.append(tree[i])
+			tree = parent
+		return tree[0]
+
+	def _backup(self, src_file_object):
 		"""
 		Send the file to glacier
-		:param src_file: Absolute path of the file to be backed up
+		:param src_file_object: FileCache object
 		:return: archive information
 		"""
-		if src_file is None:  # only happens if unsupported compression algorithm
+		if src_file_object is None:  # only happens if unsupported compression algorithm
 			return None
 		try:
-			object_data = open(src_file, "rb")
-		# possible FileNotFoundError/IOError exception
-		except Exception as e:
-			logging.error(e)
-			return None
-		try:
-			archive = self.glacier.upload_archive(vaultName=self.vault, body=object_data)  # actual work
+			response = self.glacier.initiate_multipart_upload(vaultName=self.vault, partSize=str(self.part_size))
+			upload_id = response['uploadId']
+
+			byte_pos = 0
+			list_of_checksums = []
+			while True:
+				chunk = src_file_object.read(self.part_size)
+				if chunk is None:
+					break
+				range_header = "bytes {}-{}/*".format(
+					byte_pos, byte_pos + len(chunk) - 1
+				)
+				print(range_header)
+				byte_pos += len(chunk)
+				response = self.glacier.upload_multipart_part(
+					vaultName=self.vault,
+					uploadId=upload_id,
+					range=range_header,
+					body=chunk,
+				)
+				checksum = response["checksum"]
+				list_of_checksums.append(checksum)
+
+			total_tree_hash = self.calculate_total_tree_hash(list_of_checksums)
+			archive = self.glacier.complete_multipart_upload(
+				vaultName=self.vault,
+				uploadId=upload_id,
+				archiveSize=str(byte_pos),
+				checksum=total_tree_hash,
+			)
 		except ClientError as e:
 			logging.error(e)
 			return None
-		finally:
-			object_data.close()
 
 		# Return dictionary of archive information
 		return archive
-
-	def _remove_file(self, path):
-		"""
-		Delete the given file. File will not be deleted if compression is off because compressed_file == file
-		:param path: absolute path of the file
-		"""
-		if self.compress_algo is None:
-			return
-		elif self.remove_compressed:
-			os.remove(path)
-			logging.info(f"{path} is removed")
 
 	def _mark_backed_up(self, path, archive):
 		"""
