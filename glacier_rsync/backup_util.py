@@ -35,7 +35,7 @@ class BackupUtil:
 		cur = self.conn.cursor()
 		try:
 			cur.execute(
-				"create table if not exists sync_history (id integer primary key, path text, file_size integer, mtime float, archive_id text, location text, checksum text, timestamp text);")
+				"create table if not exists sync_history (id integer primary key, path text, file_size integer, mtime float, archive_id text, location text, checksum text, compression text, timestamp text);")
 			self.conn.commit()
 		except sqlite3.OperationalError as e:
 			logging.error(f"DB error. Cannot mark the file as backed up: {str(e)})")
@@ -202,13 +202,16 @@ class BackupUtil:
 		location = archive['location']
 		checksum = archive['checksum']
 		timestamp = archive['ResponseMetadata']['HTTPHeaders']['date']
+		compression = "plain"
+		if self.compress:
+			compression = "zstd"
 
 		file_size, mtime = self.__get_stats(path)
 		cur = self.conn.cursor()
 		try:
 			cur.execute(
-				f"insert into sync_history (path, file_size, mtime, archive_id, location, checksum, timestamp) "
-				f"values ('{path}', {file_size}, {mtime}, '{archive_id}', '{location}', '{checksum}', '{timestamp}')"
+				f"insert into sync_history (path, file_size, mtime, archive_id, location, checksum, compression, timestamp) "
+				f"values ('{path}', {file_size}, {mtime}, '{archive_id}', '{location}', '{checksum}', '{compression}', '{timestamp}')"
 			)
 			self.conn.commit()
 		except sqlite3.OperationalError as e:
