@@ -25,7 +25,8 @@ class BackupUtil:
 
 		self.db_file = args.db
 		try:
-			self.conn = sqlite3.connect(self.db_file)
+			self.conn = sqlite3.connect(self.db_file, isolation_level=None)
+			self.conn.execute('pragma journal_mode=wal')
 			logging.info("connected to glacier rsync db")
 		except sqlite3.Error as e:
 			logging.error(f"Cannot create glacier rsync db: {str(e)}")
