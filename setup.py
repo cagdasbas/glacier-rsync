@@ -24,7 +24,7 @@ def read_requirements(file_name):
 
 setup(
 	name='glacier-rsync',
-	version='0.3.0',
+	version='0.3.1',
 	url='https://github.com/cagdasbas/glacier-rsync',
 	python_requires='>=3.8',
 	description='Rsync like utility for backing up files/folders to AWS Glacier',
