@@ -15,7 +15,6 @@ class BackupUtil:
 	def __init__(self, args):
 		self.src = args.src
 		self.compress = args.compress
-		self.remove_compressed = args.remove_compressed
 		self.desc = args.desc
 		self.part_size = args.partsize
 
@@ -56,17 +55,21 @@ class BackupUtil:
 		else:
 			file_list.append(self.src)  # if the source is a file just process it
 
-		logging.debug(f"number of files to backup: {len(file_list)}")
+		logging.info(f"number of files to backup: {len(file_list)}")
 		for file in file_list:
 			if not self._check_if_backed_up(file):  # True if already backed up
-				logging.debug(f"{file} will be backed up")
+				logging.info(f"{file} will be backed up")
 				file_object, compressed_file_object = self._compress(file)  # compress the file if specified
-				logging.debug(f"{file} is compressed as")
 				archive = self._backup(compressed_file_object)
+				if archive is not None:
+					logging.info(f"{file} is backed up successfully")
+				else:
+					logging.error(f"Error backing up {file}")
+
 				file_object.close()
 				self._mark_backed_up(file, archive)
 			else:
-				logging.debug(f"{file} is already backed up, skipping...")
+				logging.info(f"{file} is already backed up, skipping...")
 
 	def _check_if_backed_up(self, path):
 		"""
@@ -101,12 +104,12 @@ class BackupUtil:
 			try:
 				import zstandard as zstd
 			except ImportError:
-				msg = "cannot import zstd. Please install required libraries!"
+				msg = "cannot import zstd. Please install `zstandard' package!"
 				logging.error(msg)
 				raise ValueError(msg)
 			compression = True
 
-		return file_object, FileCache(file_object.readable(), compression=compression)
+		return file_object, FileCache(file_object, compression=compression)
 
 	def calculate_tree_hash(self, part, part_size):
 		"""
@@ -164,7 +167,6 @@ class BackupUtil:
 				range_header = "bytes {}-{}/*".format(
 					byte_pos, byte_pos + len(chunk) - 1
 				)
-				print(range_header)
 				byte_pos += len(chunk)
 				response = self.glacier.upload_multipart_part(
 					vaultName=self.vault,

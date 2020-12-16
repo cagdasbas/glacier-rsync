@@ -1,13 +1,13 @@
 class FileCache:
 	def __init__(self, f, compression=False):
 		self.compression = compression
+		self.f = f
 		if compression:
 			import zstandard as zstd
 			self.cctx = zstd.ZstdCompressor()
 			self.reader = self.cctx.read_to_iter(self.f, write_size=8192)
 		else:
-			self.reader = f
-		self.f = f
+			self.reader = self.f
 		self.next_chunk = b""
 
 	def grow_chunk(self):

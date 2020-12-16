@@ -39,9 +39,10 @@ class ArgParser:
 			default=False
 		)
 		self.parser.add_argument(
-			"--remove_compressed",
-			help="Remove the compressed file afterwards",
-			action="store_true",
+			"--partsize",
+			help="Part size for compression",
+			type=int,
+			default=1048576
 		)
 		self.parser.add_argument(
 			"--desc",
