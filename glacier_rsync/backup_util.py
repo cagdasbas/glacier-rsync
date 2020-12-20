@@ -58,10 +58,12 @@ class BackupUtil:
 
 		logging.info(f"number of files to backup: {len(file_list)}")
 		for file in file_list:
-			if not self._check_if_backed_up(file):  # True if already backed up
+			is_backed_up, file_size, mtime = self._check_if_backed_up(file)
+			if not is_backed_up:  # True if already backed up
 				logging.info(f"{file} will be backed up")
 				file_object, compressed_file_object = self._compress(file)  # compress the file if specified
-				archive = self._backup(compressed_file_object)
+				desc = f'grsync|{file}|{file_size}|{mtime}|{self.desc}'
+				archive = self._backup(compressed_file_object, desc)
 				if archive is not None:
 					logging.info(f"{file} is backed up successfully")
 				else:
@@ -89,7 +91,7 @@ class BackupUtil:
 			sys.exit(3)
 		finally:
 			cur.close()
-		return len(rows) > 0
+		return len(rows) > 0, file_size, mtime
 
 	def _compress(self, file):
 		"""
@@ -147,16 +149,21 @@ class BackupUtil:
 			tree = parent
 		return tree[0]
 
-	def _backup(self, src_file_object):
+	def _backup(self, src_file_object, description):
 		"""
 		Send the file to glacier
 		:param src_file_object: FileCache object
+		:param description: Archive description including grsync meta
 		:return: archive information
 		"""
 		if src_file_object is None:  # only happens if unsupported compression algorithm
 			return None
 		try:
-			response = self.glacier.initiate_multipart_upload(vaultName=self.vault, partSize=str(self.part_size))
+			response = self.glacier.initiate_multipart_upload(
+				vaultName=self.vault,
+				partSize=str(self.part_size),
+				archiveDescription=description
+			)
 			upload_id = response['uploadId']
 
 			byte_pos = 0
