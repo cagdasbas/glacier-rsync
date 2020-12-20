@@ -1,6 +1,6 @@
-import os
-
 from setuptools import setup, find_packages
+
+from glacier_rsync.release import __version__
 
 
 def read_file(file_name):
@@ -11,7 +11,6 @@ def read_file(file_name):
 
 def read_requirements(file_name):
 	"""Read requirements file as a list."""
-	print(os.listdir('.'))
 	reqs = read_file(file_name).splitlines()
 	if not reqs:
 		raise RuntimeError(
@@ -24,7 +23,7 @@ def read_requirements(file_name):
 
 setup(
 	name='glacier-rsync',
-	version='0.3.2',
+	version=__version__,
 	url='https://github.com/cagdasbas/glacier-rsync',
 	python_requires='>=3.8',
 	description='Rsync like utility for backing up files/folders to AWS Glacier',
@@ -51,5 +50,6 @@ setup(
 		'Programming Language :: Python',
 		'Programming Language :: Python :: 3',
 		'Programming Language :: Python :: 3.8',
+		'Programming Language :: Python :: 3.9',
 	],
 )

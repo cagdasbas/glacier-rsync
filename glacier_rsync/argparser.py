@@ -1,11 +1,17 @@
 import argparse
 import logging
 
+from glacier_rsync.release import __version__
+
 
 class ArgParser:
 
 	def __init__(self):
-		self.parser = argparse.ArgumentParser(description="Rsync like glacier backup util")
+		self.parser = argparse.ArgumentParser(
+			f"grsync version {__version__}",
+			description="Rsync like glacier backup util",
+			formatter_class=argparse.ArgumentDefaultsHelpFormatter
+		)
 		self.parser.add_argument(
 			"--loglevel",
 			dest="log_level",
