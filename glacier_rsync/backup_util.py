@@ -13,6 +13,8 @@ from glacier_rsync.file_cache import FileCache
 
 class BackupUtil:
 	def __init__(self, args):
+		self.continue_running = True
+
 		self.src = args.src
 		self.compress = args.compress
 		self.desc = args.desc
@@ -44,6 +46,20 @@ class BackupUtil:
 			cur.close()
 		logging.debug("init is done")
 
+	def stop(self):
+		"""
+		Set break condition for file list loop
+		Utility will exit as soon as current upload is complete.
+		"""
+		self.continue_running = False
+
+	def close(self):
+		"""
+		Close database connection
+		"""
+		self.conn.commit()
+		self.conn.close()
+
 	def backup(self):
 		"""
 		Interface function to find files and apply logic
@@ -58,6 +74,10 @@ class BackupUtil:
 
 		logging.info(f"number of files to backup: {len(file_list)}")
 		for file in file_list:
+			if not self.continue_running:
+				logging.info(f"Exiting early...")
+				break
+
 			is_backed_up, file_size, mtime = self._check_if_backed_up(file)
 			if not is_backed_up:  # True if already backed up
 				logging.info(f"{file} will be backed up")
@@ -73,6 +93,7 @@ class BackupUtil:
 				self._mark_backed_up(file, archive)
 			else:
 				logging.info(f"{file} is already backed up, skipping...")
+		self.close()
 
 	def _check_if_backed_up(self, path):
 		"""
