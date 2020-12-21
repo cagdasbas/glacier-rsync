@@ -25,7 +25,7 @@ def main():
 	def signal_handler(sig, frame):
 		global stop_request_count
 		stop_request_count += 1
-		if stop_request_count <= FORCE_STOP_LIMIT:
+		if stop_request_count < FORCE_STOP_LIMIT:
 			logging.info(f"Stop is requested, grsync will exit when current upload is complete.")
 			logging.info(f"Press ctrl+c {FORCE_STOP_LIMIT} times for force exit.")
 			backup_util.stop()

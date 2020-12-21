@@ -16,7 +16,7 @@ class ArgParser:
 			"--loglevel",
 			dest="log_level",
 			type=str,
-			choices=list(logging._levelToName.values()),
+			choices=list(logging._nameToLevel.keys()),
 			default="INFO",
 			help="log level"
 		)
@@ -45,15 +45,15 @@ class ArgParser:
 			default=False
 		)
 		self.parser.add_argument(
-			"--partsize",
+			"--part-size",
 			help="Part size for compression",
 			type=int,
-			default=1048576
+			default=1048576,
 		)
 		self.parser.add_argument(
 			"--desc",
 			metavar="desc",
-			help="A description for the archive that will be stored in Amazon Glacer"
+			help="A description for the archive that will be stored in Amazon Glacier"
 		)
 		self.parser.add_argument(
 			"src",
@@ -61,7 +61,8 @@ class ArgParser:
 			help="file or folder to generate archive from"
 		)
 
-	def str2bool(self, v):
+	@staticmethod
+	def str2bool(v):
 		if isinstance(v, bool):
 			return v
 		if v.lower() in ('yes', 'true', 't', 'y', '1'):

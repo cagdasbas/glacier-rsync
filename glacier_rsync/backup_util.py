@@ -18,7 +18,7 @@ class BackupUtil:
 		self.src = args.src
 		self.compress = args.compress
 		self.desc = args.desc
-		self.part_size = args.partsize
+		self.part_size = args.part_size
 
 		self.vault = args.vault
 		self.region = args.region
@@ -37,7 +37,8 @@ class BackupUtil:
 		cur = self.conn.cursor()
 		try:
 			cur.execute(
-				"create table if not exists sync_history (id integer primary key, path text, file_size integer, mtime float, archive_id text, location text, checksum text, compression text, timestamp text);")
+				"create table if not exists sync_history (id integer primary key, path text, file_size integer, "
+				"mtime float, archive_id text, location text, checksum text, compression text, timestamp text);")
 			self.conn.commit()
 		except sqlite3.OperationalError as e:
 			logging.error(f"DB error. Cannot mark the file as backed up: {str(e)})")
@@ -80,7 +81,7 @@ class BackupUtil:
 
 			is_backed_up, file_size, mtime = self._check_if_backed_up(file)
 			if not is_backed_up:  # True if already backed up
-				logging.info(f"{file_index+1}/{len(file_list)} - {file} will be backed up")
+				logging.info(f"{file_index + 1}/{len(file_list)} - {file} will be backed up")
 				file_object, compressed_file_object = self._compress(file)  # compress the file if specified
 				desc = f'grsync|{file}|{file_size}|{mtime}|{self.desc}'
 				archive = self._backup(compressed_file_object, desc)
@@ -92,13 +93,14 @@ class BackupUtil:
 				file_object.close()
 				self._mark_backed_up(file, archive)
 			else:
-				logging.info(f"{file_index+1}/{len(file_list)} - {file} is already backed up, skipping...")
+				logging.info(f"{file_index + 1}/{len(file_list)} - {file} is already backed up, skipping...")
+		logging.info("All files are processed.")
 		self.close()
 
 	def _check_if_backed_up(self, path):
 		"""
 		Check if file is already backed up
-		:param file: full file path
+		:param path: full file path
 		:return: True if file is backed up, False if file is not backed up
 		"""
 		file_size, mtime = self.__get_stats(path)  # file size and mtime should match. if not it will be backed up again
@@ -151,7 +153,8 @@ class BackupUtil:
 			del chunk
 		return self.calculate_total_tree_hash(checksums)
 
-	def calculate_total_tree_hash(self, checksums):
+	@staticmethod
+	def calculate_total_tree_hash(checksums):
 		"""
 		Calculate hash of a list
 		:param checksums: list(checksum) -> a list of checksum
@@ -224,7 +227,7 @@ class BackupUtil:
 		"""
 		Mark the given file as archived in db with associated information
 		:param path: absolute path of the file
-		:param archive_id: glacier archive id
+		:param archive: glacier archive information
 		"""
 		if archive is None:
 			logging.error(f"{path} cannot be backed up")
@@ -241,8 +244,10 @@ class BackupUtil:
 		cur = self.conn.cursor()
 		try:
 			cur.execute(
-				f"insert into sync_history (path, file_size, mtime, archive_id, location, checksum, compression, timestamp) "
-				f"values ('{path}', {file_size}, {mtime}, '{archive_id}', '{location}', '{checksum}', '{compression}', '{timestamp}')"
+				f"insert into sync_history "
+				f"(path, file_size, mtime, archive_id, location, checksum, compression, timestamp) "
+				f"values ('{path}', {file_size}, {mtime}, '{archive_id}', '{location}', "
+				f"'{checksum}', '{compression}', '{timestamp}')"
 			)
 			self.conn.commit()
 		except sqlite3.OperationalError as e:
@@ -251,7 +256,8 @@ class BackupUtil:
 		finally:
 			cur.close()
 
-	def __get_stats(self, path):
+	@staticmethod
+	def __get_stats(path):
 		"""
 		Get the stats of given file
 		:param path: absolute path of the file
