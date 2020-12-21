@@ -45,3 +45,4 @@ CREATE TABLE
 ```
 
 ### Do not lose your database
+Currently, there is no way to rebuild it from aws inventory. 
