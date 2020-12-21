@@ -73,14 +73,14 @@ class BackupUtil:
 			file_list.append(self.src)  # if the source is a file just process it
 
 		logging.info(f"number of files to backup: {len(file_list)}")
-		for file in file_list:
+		for file_index, file in enumerate(file_list):
 			if not self.continue_running:
 				logging.info(f"Exiting early...")
 				break
 
 			is_backed_up, file_size, mtime = self._check_if_backed_up(file)
 			if not is_backed_up:  # True if already backed up
-				logging.info(f"{file} will be backed up")
+				logging.info(f"{file_index+1}/{len(file_list)} - {file} will be backed up")
 				file_object, compressed_file_object = self._compress(file)  # compress the file if specified
 				desc = f'grsync|{file}|{file_size}|{mtime}|{self.desc}'
 				archive = self._backup(compressed_file_object, desc)
@@ -92,7 +92,7 @@ class BackupUtil:
 				file_object.close()
 				self._mark_backed_up(file, archive)
 			else:
-				logging.info(f"{file} is already backed up, skipping...")
+				logging.info(f"{file_index+1}/{len(file_list)} - {file} is already backed up, skipping...")
 		self.close()
 
 	def _check_if_backed_up(self, path):

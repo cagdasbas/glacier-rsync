@@ -7,7 +7,7 @@ import sys
 from glacier_rsync.argparser import ArgParser
 from glacier_rsync.backup_util import BackupUtil
 
-FORCE_STOP_LIMIT = 5
+FORCE_STOP_LIMIT = 3
 global stop_request_count
 
 
@@ -18,6 +18,7 @@ def main():
 		format="%(asctime)s - %(module)s.%(funcName)s:%(lineno)d - %(levelname)s - %(message)s",
 		level=getattr(logging, args.log_level, None))
 
+	global stop_request_count
 	stop_request_count = 0
 	backup_util = BackupUtil(args)
 
