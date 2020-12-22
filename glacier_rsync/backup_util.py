@@ -82,9 +82,15 @@ class BackupUtil:
 			is_backed_up, file_size, mtime = self._check_if_backed_up(file)
 			if not is_backed_up:  # True if already backed up
 				logging.info(f"{file_index + 1}/{len(file_list)} - {file} will be backed up")
+
+				part_size = self.decide_part_size(file_size)  # decide part size for each file
+				logging.debug(f"part size is {part_size}")
+
 				file_object, compressed_file_object = self._compress(file)  # compress the file if specified
+
 				desc = f'grsync|{file}|{file_size}|{mtime}|{self.desc}'
-				archive = self._backup(compressed_file_object, desc)
+				archive = self._backup(compressed_file_object, desc, part_size)
+
 				if archive is not None:
 					logging.info(f"{file} is backed up successfully")
 				else:
@@ -94,6 +100,7 @@ class BackupUtil:
 				self._mark_backed_up(file, archive)
 			else:
 				logging.info(f"{file_index + 1}/{len(file_list)} - {file} is already backed up, skipping...")
+
 		logging.info("All files are processed.")
 		self.close()
 
@@ -173,11 +180,12 @@ class BackupUtil:
 			tree = parent
 		return tree[0]
 
-	def _backup(self, src_file_object, description):
+	def _backup(self, src_file_object, description, part_size):
 		"""
 		Send the file to glacier
 		:param src_file_object: FileCache object
 		:param description: Archive description including grsync meta
+		:param part_size: Part size for multipart upload
 		:return: archive information
 		"""
 		if src_file_object is None:  # only happens if unsupported compression algorithm
@@ -185,7 +193,7 @@ class BackupUtil:
 		try:
 			response = self.glacier.initiate_multipart_upload(
 				vaultName=self.vault,
-				partSize=str(self.part_size),
+				partSize=str(part_size),
 				archiveDescription=description
 			)
 			upload_id = response['uploadId']
@@ -193,7 +201,7 @@ class BackupUtil:
 			byte_pos = 0
 			list_of_checksums = []
 			while True:
-				chunk = src_file_object.read(self.part_size)
+				chunk = src_file_object.read(part_size)
 				if chunk is None:
 					break
 				range_header = "bytes {}-{}/*".format(
@@ -264,3 +272,15 @@ class BackupUtil:
 		:return: tuple(file size, modified time)
 		"""
 		return os.path.getsize(path), os.path.getmtime(path)
+
+	def decide_part_size(self, file_size):
+		"""
+		Decide Glacier part size
+		Number of parts for multipart upload should be smaller than 10000
+		:param file_size: size of file to be uploaded
+		:return: part size for upload
+		"""
+		part_size = self.part_size
+		while file_size / part_size > 10000:
+			part_size *= 2
+		return part_size
